@@ -55,65 +55,66 @@ public class PlayerListener implements Listener {
 	
 	@EventHandler
 	public void onPlayerInteract(PlayerInteractEvent event) {
+		// Variables
+		Player player = event.getPlayer();
+		Action action = event.getAction();
 		// Shuriken throwing
-		if ((event.getAction() == Action.LEFT_CLICK_AIR) && (event.getPlayer().getItemInHand().getTypeId() == 318) && (checkForPermission("DarkBrotherhood.use.shuriken", event.getPlayer()))) {
+		if ((action == Action.LEFT_CLICK_AIR) && (player.getItemInHand().getTypeId() == 318) && (checkForPermission("DarkBrotherhood.use.shuriken", player))) {
 			ItemStack item = event.getItem();
 			/**if (plugin.useSpout) {
 				SpoutItemStack sItem = (SpoutItemStack) event.getItem();
 				if (sItem.getMaterial() != plugin.shuriken) return;
 			}**/
 			if (item.getTypeId() != DarkBrotherhood.config.getInt("ShurikenId")) return;
-			Arrow shuriken = event.getPlayer().launchProjectile(Arrow.class);
-			//SpoutItemStack is = (SpoutItemStack) event.getPlayer().getItemInHand();
+			Arrow shuriken = player.launchProjectile(Arrow.class);
+			//SpoutItemStack is = (SpoutItemStack) player.getItemInHand();
 			if (item.getAmount() > 1) {
 				item.setAmount(item.getAmount() - 1);
 			} else {
-				event.getPlayer().getInventory().clear(event.getPlayer().getInventory().getHeldItemSlot());
+				player.getInventory().clear(player.getInventory().getHeldItemSlot());
 			}
 			
 			this.plugin.entityListener.shuriken.add(shuriken);
 		}
 		
 		// Climbing blocks
-		if ((event.getAction() == Action.RIGHT_CLICK_BLOCK) && (event.getPlayer().getItemInHand().getTypeId() == 0)) {
+		if ((action == Action.RIGHT_CLICK_BLOCK) && (player.getItemInHand().getTypeId() == 0)) {
 			Block block = event.getClickedBlock();
-			Player p = event.getPlayer();
-			
-			World w = p.getWorld();
-			if (checkForPermission("DarkBrotherhood.climb", p)) {
-				int energy = DarkBrotherhood.mana.get(p);
+			World w = block.getWorld();
+			if (checkForPermission("DarkBrotherhood.climb", player)) {
+				int energy = DarkBrotherhood.mana.get(player);
 				if (energy < climbEN) {
-					p.sendMessage(ChatColor.RED + "You don't have enough energy to climb!");
+					player.sendMessage(ChatColor.RED + "You don't have enough energy to climb!");
 					return;
 				}
 				if (canClimb(block)) {
 					if (event.getBlockFace() == BlockFace.DOWN) {
 						Block playerBlock = w.getBlockAt(block.getX(), block.getY() - 1, block.getZ());
-						climbBlock(playerBlock, p);
+						climbBlock(playerBlock, player);
 					} else if (event.getBlockFace() == BlockFace.UP) {
 						Block playerBlock = block.getRelative(0, 2, 0);
-						climbBlock(playerBlock, p);
+						climbBlock(playerBlock, player);
 					} else {
 						int bx = block.getX();
 						int bz = block.getZ();
-						int px = p.getLocation().getBlockX();
-						int pz = p.getLocation().getBlockZ();
+						int px = player.getLocation().getBlockX();
+						int pz = player.getLocation().getBlockZ();
 						int xdifference = px - bx;
 						int zdifference = pz - bz;
 						if (Math.abs(xdifference) > Math.abs(zdifference)) {
 							if (xdifference > 0) {
-								climbBlock(block.getRelative(1, 0, 0), p);
+								climbBlock(block.getRelative(1, 0, 0), player);
 							} else {
-								climbBlock(block.getRelative(-1, 0, 0), p);
+								climbBlock(block.getRelative(-1, 0, 0), player);
 							}
 							
 						} else if (zdifference > 0) {
-							climbBlock(block.getRelative(0, 0, 1), p);
+							climbBlock(block.getRelative(0, 0, 1), player);
 						} else {
-							climbBlock(block.getRelative(0, 0, -1), p);
+							climbBlock(block.getRelative(0, 0, -1), player);
 						}
 					}
-					DarkBrotherhood.mana.put(p, energy - climbEN);
+					DarkBrotherhood.mana.put(player, energy - climbEN);
 				}
 				
 			}
@@ -121,18 +122,16 @@ public class PlayerListener implements Listener {
 		}
 		
 		// Poisoning weapons
-		if ((event.getAction() == Action.RIGHT_CLICK_AIR) && (event.getPlayer().getItemInHand().getTypeId() == this.poisonItem)
-				&& (checkForPermission("DarkBrotherhood.use.poison", event.getPlayer()))) {
-			Player p = event.getPlayer();
-			if (this.plugin.entityListener.hasPoison.contains(p)) {
-				p.sendMessage("Your weapon is already poisoned!");
+		if ((action.equals(Action.RIGHT_CLICK_AIR)) && (player.getItemInHand().getTypeId() == poisonItem) && (checkForPermission("DarkBrotherhood.use.poison", player))) {
+			if (plugin.entityListener.hasPoison.contains(player)) {
+				player.sendMessage("Your weapon is already poisoned!");
 			} else {
-				p.sendMessage("You poison your weapon!");
-				this.plugin.entityListener.hasPoison.add(p);
-				ItemStack is = event.getPlayer().getItemInHand();
+				player.sendMessage("You poison your weapon!");
+				this.plugin.entityListener.hasPoison.add(player);
+				ItemStack is = player.getItemInHand();
 				if (is.getAmount() > 1) {
 					is.setAmount(is.getAmount() - 1);
-				} else event.getPlayer().getInventory().clear(event.getPlayer().getInventory().getHeldItemSlot());
+				} else player.getInventory().clear(player.getInventory().getHeldItemSlot());
 			}
 		}
 	}
@@ -149,8 +148,8 @@ public class PlayerListener implements Listener {
 				DarkBrotherhood.mana.put(sneaker, energy - sneakEN);
 				sneaker.sendMessage(ChatColor.GOLD + "You are now hidden in the shadows!");
 				System.out.println(sneakEN + "," + climbEN + "," + addEN + "," + tickEN);
-				for(int i = 0; i <= players.length; i++) {
-					Player viewer = players[i];
+				for(int i = 1; i <= players.length; i++) {
+					Player viewer = players[i - 1];
 					if (!checkForPermission("SeeInvisiblePlayers", viewer)) {
 						sneaker.hidePlayer(viewer);
 					}
