@@ -1,0 +1,11 @@
+name: DarkBrotherhood
+main: me.iMint.DarkBrotherhood.DarkBrotherhood
+version: 1.6
+author: iMint
+commands:
+    darkbrotherhood:
+        description: basic command
+        usage: /<command>
+    db:
+        description: basic command
+        usage: /<command>

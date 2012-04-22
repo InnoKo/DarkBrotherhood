@@ -1,0 +1,38 @@
+#################################
+# DarkBrotherhood Configuration #
+#           by iMint            #
+#################################
+
+usePermissions: false
+climbableBlocks: 4,5,43,44,45,47,48,85
+Multiplier: 2
+
+LockPickId: 287
+PoisonItemId: 40
+ShurikenItemId: 318
+
+LockPickChance: 25
+PoisonDuration: 5
+
+# Damage is in half hearts, i.e. 5 damage = 2.5 hearts
+FailedLockPickDamage: 5
+PoisonDamage: 1
+ShurikenDamage: 2
+
+# L.O.F. stands for Leap of Faith
+L.O.F.-Chance: 50
+L.O.F.-success-message: You successfully rolled to avoid fall damage!
+L.O.F.-fail-message: You failed to roll, badly injuring yourself!
+
+MaximumEnergy: 100
+
+# How often energy is restored (in seconds):
+EnergyRestoreTick: 5
+
+# How much energy is restored every EnergyRestoreTick:
+EnergyRestoreAmount: 5
+
+AssassinateEnergyUsage: 60
+L.O.F.-EnergyUsage: 40
+ClimbingEnergyUsage: 5
+InvisibilityEnergyUsage: 20
