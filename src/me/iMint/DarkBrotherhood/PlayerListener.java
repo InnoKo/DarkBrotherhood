@@ -148,8 +148,8 @@ public class PlayerListener implements Listener {
 				DarkBrotherhood.mana.put(sneaker, energy - sneakEN);
 				sneaker.sendMessage(ChatColor.GOLD + "You are now hidden in the shadows!");
 				System.out.println(sneakEN + "," + climbEN + "," + addEN + "," + tickEN);
-				for(int i = 1; i <= players.length; i++) {
-					Player viewer = players[i - 1];
+				for(int i = 0; i <= players.length; i++) {
+					Player viewer = players[i];
 					if (!checkForPermission("SeeInvisiblePlayers", viewer)) {
 						sneaker.hidePlayer(viewer);
 					}
