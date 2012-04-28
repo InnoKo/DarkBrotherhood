@@ -15,10 +15,15 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map.Entry;
 import java.util.logging.Logger;
 import net.milkbowl.vault.permission.Permission;
 import org.bukkit.ChatColor;
+import org.bukkit.Location;
+import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -33,17 +38,46 @@ public class DarkBrotherhood extends JavaPlugin {
 	
 	// Utility fields
 	public static final Logger log = Logger.getLogger("Minecraft");
-	public PlayerTracker pTracker = new PlayerTracker(this);
-	public EntityListener entityListener;
-	public LockpickListener lockListener;
-	public PlayerListener playerlistener;
 	public static Permission permission;
+	public PlayerTracker pTracker;
+	public EntityListener entityListener;
+	public LockListener lockListener;
+	public PlayerListener playerlistener;
 	
 	// File fields
-	public static final String mainDirectory = "plugins/Darkbrotherhood";
+	public static final String mainDirectory = "plugins/DarkBrotherhood";
 	public static FileConfiguration config;
+	public static File chestData;
 	public static File manaData;
 	public File configFile;
+	
+	// Config fields
+	public static boolean UsePermissions;
+	public static List<Integer> ClimbableBlocks;
+	public static int Multiplier;
+	public static int EnergyItem;
+	public static int LockpickItem;
+	public static int LockItem;
+	public static int PoisonItem;
+	public static int ShurikenItem;
+	public static int LockpickSuccessChance;
+	public static int LockpickFailureDamage;
+	public static int PoisonDuration;
+	public static int PoisonDamage;
+	public static int ShurikenDamage;
+	public static int InvisibilityMaximumLightLevel;
+	public static int InvisibilityDistance;
+	public static int LeapOfFaithSuccessChance;
+	public static String LeapOfFaithSuccessMessage;
+	public static String LeapOfFaithFailureMessage;
+	public static int MaximumEnergy;
+	public static int EnergyRestoreTick;
+	public static int EnergyRestoreAmount;
+	public static int EnergyItemRestoreAmount;
+	public static int AssassinationEnergyUsage;
+	public static int LeapOfFaithEnergyUsage;
+	public static int ClimbingEnergyUsage;
+	public static int InvisibilityEnergyUsage;
 	
 	/** 
 	// Spout fields
@@ -56,12 +90,14 @@ public class DarkBrotherhood extends JavaPlugin {
 	
 	// Other fields
 	public static HashMap<Player, Integer> mana = new HashMap<Player, Integer>();
+	public static HashMap<Block, Player> locked = new HashMap<Block, Player>();
+	public static List<Player> hidden = new ArrayList<Player>();
 	
 	// Disabling
 	@Override
 	public void onDisable() {
 		saveData();
-		log.info("DarkBrotherhood is now Disabled!");
+		log.info("DarkBrotherhood is now disabled!");
 	}
 	
 	// Enabling
@@ -79,12 +115,14 @@ public class DarkBrotherhood extends JavaPlugin {
 			copy(getResource("config.yml"), configFile);
 		}
 		config = this.getConfig();
+		loadConfig();
 		
 		// Events
 		PluginManager pm = getServer().getPluginManager();
 		entityListener = new EntityListener(this);
-		lockListener = new LockpickListener(this);
+		lockListener = new LockListener(this);
 		playerlistener = new PlayerListener(this);
+		pTracker = new PlayerTracker(this);
 		pm.registerEvents(entityListener, this);
 		pm.registerEvents(lockListener, this);
 		pm.registerEvents(playerlistener, this);
@@ -104,88 +142,109 @@ public class DarkBrotherhood extends JavaPlugin {
 		**/
 		
 		// Load Everything
-		loadConfig();
 		loadData();
 		loadProcedure();
 		setupPermissions();
 		
+		// Scheduler
+		getServer().getScheduler().scheduleAsyncRepeatingTask(this, new Runnable(){
+			
+			public void run() {
+				Iterator<Player> it = hidden.iterator();
+				while (it.hasNext()) {
+					Player sneaker = it.next();
+					Player[] viewers = getServer().getOnlinePlayers();
+					for(int i = 0; i < viewers.length; i++) {
+						Player viewer = viewers[i];
+						Location sneak = sneaker.getLocation();
+						Location view = viewer.getLocation();
+						// If the viewer is too close to the sneaker, he can be seen!
+						if (view.distance(sneak) < InvisibilityDistance) {
+							viewer.showPlayer(sneaker);
+						}
+					}
+				}
+			}
+		}, 0L, 80L);
+		
+		// If there are already players online (i.e. from a server reload) load energy for them
+		Player[] players = getServer().getOnlinePlayers();
+		for(int i = 0; i < players.length; i++) {
+			PlayerListener.startEnergy(players[i]);
+		}
+		
 		// Enabling Message
 		PluginDescriptionFile pdf = this.getDescription();
-		log.info(pdf.getName() + " " + pdf.getVersion() + " is now Enabled!");
+		log.info(pdf.getName() + " " + pdf.getVersion() + " by iMint is now enabled!");
 	}
 	
-	// Loads the Config
 	private void loadConfig() {
-		config.addDefault("usePermissions", "false");
-		config.addDefault("climbableBlocks", "4,5,43,44,45,47,48,85");
-		config.addDefault("Multiplier", "2");
-		config.addDefault("LockPickId", "287");
-		config.addDefault("LockPickChance", "25");
-		config.addDefault("FailedLockpickDamage", "5");
-		config.addDefault("PoisonDuration", "5");
-		config.addDefault("PoisonDamage", "1");
-		config.addDefault("PoisonItemID", "40");
-		config.addDefault("L.O.F.-Chance", "50");
-		config.addDefault("L.O.F.-success-message", "You successfully rolled to avoid fall damage!");
-		config.addDefault("L.O.F.-fail-message", "You failed to roll, badly injuring yourself!");
-		config.addDefault("ShurikenItemID", "318");
-		config.addDefault("ShurikenDamage", "2");
-		config.addDefault("MaximumEnergy", "100");
-		config.addDefault("EnergyRestoreTick", "5");
-		config.addDefault("EnergyRestoreAmount", "5");
-		config.addDefault("AssassinateEnergyUsage", "60");
-		config.addDefault("L.O.F.-EnergyUsage", "40");
-		config.addDefault("ClimbingEnergyUsage", "5");
-		config.addDefault("InvisibilityEnergyUsage", "20");
-		config.options().copyDefaults(true);
+		updatePath("General Settings.Use Permissions", false);
+		updatePath("General Settings.Climbable Blocks", "[4,5,24,43,44,45,47,48,85,101]");
+		updatePath("General Settings.Multiplier", 2);
+		updatePath("Item Settings.Energy Item", 353);
+		updatePath("Item Settings.Lockpick Item", 287);
+		updatePath("Item Settings.Lock Item", 77);
+		updatePath("Item Settings.Poison Item", 40);
+		updatePath("Item Settings.Shuriken Item", 318);
+		updatePath("Stat Settings.Lockpick Success Chance", 25);
+		updatePath("Stat Settings.Lockpick Failure Damage", 5);
+		updatePath("Stat Settings.Poison Duration", 5);
+		updatePath("Stat Settings.Poison Damage", 1);
+		updatePath("Stat Settings.Shuriken Damage", 2);
+		updatePath("Stat Settings.Invisibility Maximum Light Level", 14);
+		updatePath("Stat Settings.Invisibility Distance", 1);
+		updatePath("Leap of Faith Settings.Success Chance", 50);
+		updatePath("Leap of Faith Settings.Success Message", "You successfully rolled to avoid fall damage!");
+		updatePath("Leap of Faith Settings.Failure Message", "You failed to roll, badly injuring yourself!");
+		updatePath("Energy Settings.Maximum Energy", 100);
+		updatePath("Energy Settings.Energy Restore Tick", 2);
+		updatePath("Energy Settings.Energy Restore Amount", 10);
+		updatePath("Energy Settings.Energy Item Restore Amount", 15);
+		updatePath("Energy Settings.Assassination Energy Usage", 40);
+		updatePath("Energy Settings.Leap of Faith Energy Usage", 40);
+		updatePath("Energy Settings.Climbing Energy Usage", 15);
+		updatePath("Energy Settings.Invisibility Energy Usage", 20);
 		saveConfig();
-	}
-	
-	// Reloads the config via /darkbrotherhood reload
-	private void reLoadConfig() {
 		try {
-			config.load(configFile);
-			saveConfig();
-		} catch (Exception e) {
+			getConfig().save(configFile);
+		} catch (IOException e) {
 			e.printStackTrace();
 		}
+		//█████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+		UsePermissions = getConfig().getBoolean("General Settings.Use Permissions");
+		ClimbableBlocks = getConfig().getIntegerList("General Settings.Climbable Blocks");
+		Multiplier = getConfig().getInt("General Settings.Multiplier");
+		EnergyItem = getConfig().getInt("Item Settings.Energy Item");
+		LockpickItem = getConfig().getInt("Item Settings.Lockpick Item");
+		LockItem = getConfig().getInt("Item Settings.Lock Item");
+		PoisonItem = getConfig().getInt("Item Settings.Poison Item");
+		ShurikenItem = getConfig().getInt("Item Settings.Shuriken Item");
+		LockpickSuccessChance = getConfig().getInt("Stat Settings.Lockpick Success Chance");
+		LockpickFailureDamage = getConfig().getInt("Stat Settings.Lockpick Failure Damage");
+		PoisonDuration = 5;//getConfig().getInt("Stat Settings.Poison Duration");
+		PoisonDamage = getConfig().getInt("Stat Settings.Poison Damage");
+		ShurikenDamage = getConfig().getInt("Stat Settings.Shuriken Damage");
+		InvisibilityMaximumLightLevel = getConfig().getInt("Stat Settings.Invisibility Maximum Light Level");
+		InvisibilityDistance = getConfig().getInt("Stat Settings.Invisibility Distance");
+		LeapOfFaithSuccessChance = getConfig().getInt("Leap of Faith Settings.Success Chance");
+		LeapOfFaithSuccessMessage = getConfig().getString("Leap of Faith Settings.Success Message");
+		LeapOfFaithFailureMessage = getConfig().getString("Leap of Faith Settings.Failure Message");
+		MaximumEnergy = getConfig().getInt("Energy Settings.Maximum Energy");
+		EnergyRestoreTick = getConfig().getInt("Energy Settings.Energy Restore Tick");
+		EnergyRestoreAmount = getConfig().getInt("Energy Settings.Energy Restore Amount");
+		EnergyItemRestoreAmount = getConfig().getInt("Energy Settings.Energy Item Restore Amount");
+		AssassinationEnergyUsage = getConfig().getInt("Energy Settings.Assassination Energy Usage");
+		LeapOfFaithEnergyUsage = getConfig().getInt("Energy Settings.Leap of Faith Energy Usage");
+		ClimbingEnergyUsage = getConfig().getInt("Energy Settings.Climbing Energy Usage");
+		InvisibilityEnergyUsage = getConfig().getInt("Energy Settings.Invisibility Energy Usage");
 	}
 	
-	// Loads config values into memory
-	@SuppressWarnings({ "rawtypes", "unchecked" })
+	// Loads schedulers
 	private void loadProcedure() {
 		// Scheduler
 		BukkitScheduler bs = getServer().getScheduler();
 		bs.scheduleAsyncRepeatingTask(this, this.pTracker, 1L, 20L);
-		
-		// Permission Usage
-		boolean b = config.getBoolean("usePermissions");
-		entityListener.setPermissionUsage(b);
-		playerlistener.setPermissionsUsage(b);
-		lockListener.setPermissionUsage(b);
-		
-		// Climbable Blocks
-		String s = config.getString("climbableBlocks");
-		String[] climbablesString = s.split(",");
-		ArrayList climbables = new ArrayList();
-		for(int i = 0; i < climbablesString.length; i++) {
-			climbables.add(Integer.valueOf(Integer.parseInt(climbablesString[i])));
-		}
-		int[] finished = new int[climbables.size()];
-		for(int i = 0; i < climbables.size(); i++) {
-			Integer current = (Integer) climbables.get(i);
-			finished[i] = current.intValue();
-		}
-		this.playerlistener.setClimbable(finished);
-		
-		// Load Config Values
-		this.entityListener.setMultiplier(config.getInt("Multiplier"));
-		this.lockListener.setFailedDamage(config.getInt("failedLockpickDamage"));
-		this.lockListener.setLockPickId(config.getInt("LockPickId"));
-		this.lockListener.setLockPickChance(config.getInt("LockPickChance"));
-		this.pTracker.setDuration(config.getInt("poisonDuration"));
-		this.playerlistener.setPoisonItem(config.getInt("poisonItem"));
-		this.pTracker.setPoisonDamage(config.getInt("poisonDamage"));
 	}
 	
 	// Set up Vault Permissions
@@ -195,6 +254,13 @@ public class DarkBrotherhood extends JavaPlugin {
 			permission = permissionProvider.getProvider();
 		}
 		return (permission != null);
+	}
+	
+	// Set config values if they aren't there
+	private void updatePath(String path, Object defaultObject) {
+		if (!getConfig().contains(path)) {
+			getConfig().set(path, defaultObject);
+		}
 	}
 	
 	// Copy the default config.yml
@@ -215,6 +281,7 @@ public class DarkBrotherhood extends JavaPlugin {
 	
 	// Save data files
 	public void saveData() {
+		// Save Energy
 		try {
 			FileOutputStream os = new FileOutputStream(manaData);
 			PrintStream printer = new PrintStream(os);
@@ -227,10 +294,28 @@ public class DarkBrotherhood extends JavaPlugin {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+		// Save Locked Chests
+		try {
+			FileOutputStream os = new FileOutputStream(chestData);
+			PrintStream printer = new PrintStream(os);
+			for(Entry<Block, Player> entry : locked.entrySet()) {
+				Block block = entry.getKey();
+				Player player = entry.getValue();
+				String w = block.getWorld().getName();
+				int x = block.getX();
+				int y = block.getY();
+				int z = block.getZ();
+				String paper = w + "," + x + "," + y + "," + z + ":" + player.getName();
+				printer.println(paper);
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 	
 	// Load data files
 	public void loadData() {
+		// Load Energy
 		try {
 			manaData = new File(mainDirectory + "/mana.dat");
 			if (!manaData.exists()) {
@@ -245,6 +330,31 @@ public class DarkBrotherhood extends JavaPlugin {
 				Player player = getServer().getPlayer(temp[0]);
 				Integer mana = Integer.parseInt(temp[1]);
 				DarkBrotherhood.mana.put(player, mana);
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		// Load Locked Chests
+		try {
+			chestData = new File(mainDirectory + "/chests.dat");
+			if (!chestData.exists()) {
+				(new File(mainDirectory)).mkdir();
+				chestData.createNewFile();
+			}
+			FileInputStream in = new FileInputStream(chestData);
+			BufferedReader reader = new BufferedReader(new InputStreamReader(new DataInputStream(in)));
+			String s;
+			while ((s = reader.readLine()) != null) {
+				String temp[] = s.split(":");
+				String _coords = temp[0];
+				String[] coords = _coords.split(",");
+				int x = Integer.parseInt(coords[1]);
+				int y = Integer.parseInt(coords[2]);
+				int z = Integer.parseInt(coords[3]);
+				World world = getServer().getWorld(coords[0]);
+				Block block = world.getBlockAt(x, y, z);
+				Player player = getServer().getPlayer(temp[1]);
+				DarkBrotherhood.locked.put(block, player);
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -268,7 +378,8 @@ public class DarkBrotherhood extends JavaPlugin {
 				if (args[0].equalsIgnoreCase("reload")) {
 					// If the command was from the console
 					if (!(sender instanceof Player)) {
-						reLoadConfig();
+						reloadConfig();
+						loadConfig();
 						sender.sendMessage("DarkBrotherhood reloaded.");
 						return true;
 					} else {
@@ -277,7 +388,8 @@ public class DarkBrotherhood extends JavaPlugin {
 							player.sendMessage(ChatColor.RED + "You don't have permission to do that!");
 							return true;
 						} else {
-							reLoadConfig();
+							reloadConfig();
+							loadConfig();
 							sender.sendMessage(ChatColor.GREEN + "DarkBrotherhood reloaded.");
 							return true;
 						}

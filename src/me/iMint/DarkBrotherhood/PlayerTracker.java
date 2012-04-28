@@ -11,65 +11,58 @@ import org.bukkit.entity.Player;
 public class PlayerTracker implements Runnable {
 	
 	DarkBrotherhood plugin;
-	Server s;
-	boolean permUsage = false;
+	Server server;
+	boolean usePerms;
 	int runtimes = 0;
-	int duration = 5;
-	int poisonDamage = 1;
+	int duration;
+	int poisonDamage;
 	HashMap<Player, Block> playerBlocks = new HashMap<Player, Block>();
 	HashMap<Player, Boolean> hasBlock = new HashMap<Player, Boolean>();
 	ArrayList<Player> players = new ArrayList<Player>();
 	ArrayList<LivingEntity> poisoned = new ArrayList<LivingEntity>();
 	HashMap<LivingEntity, Integer> poisonDurations = new HashMap<LivingEntity, Integer>();
 	
-	public PlayerTracker (DarkBrotherhood instance) {
-		this.plugin = instance;
-		this.s = this.plugin.getServer();
-	}
-	
-	// Set the poison duration
-	public void setDuration(int i) {
-		this.duration = i;
-	}
-	
-	// Set damage per poison tick
-	public void setPoisonDamage(int i) {
-		this.poisonDamage = i;
+	public PlayerTracker (DarkBrotherhood db) {
+		plugin = db;
+		server = db.getServer();
+		usePerms = DarkBrotherhood.UsePermissions;
+		duration = DarkBrotherhood.PoisonDuration;
+		poisonDamage = DarkBrotherhood.PoisonDamage;
 	}
 	
 	// Poison a player
-	public void addPoisonedPlayer(Player p) {
-		this.poisoned.add(p);
+	public void addPoisonedPlayer(Player player) {
+		poisoned.add(player);
 	}
 	
 	// Damaged poisoned players
 	public void applyPoison() {
-		for(int i = 0; i < this.poisoned.size(); i++) {
-			LivingEntity p = this.poisoned.get(i);
-			if (this.poisonDurations.containsKey(p)) {
-				if (this.poisonDurations.get(p).intValue() > 1) {
+		for(int i = 0; i < poisoned.size(); i++) {
+			LivingEntity p = poisoned.get(i);
+			if (poisonDurations.containsKey(p)) {
+				if (poisonDurations.get(p).intValue() > 1) {
 					p.damage(this.poisonDamage);
-					this.poisonDurations.put(p, Integer.valueOf(this.poisonDurations.get(p).intValue() - 1));
+					poisonDurations.put(p, Integer.valueOf(poisonDurations.get(p).intValue() - 1));
 				} else {
 					p.damage(this.poisonDamage);
 					this.poisoned.remove(i);
 					this.poisonDurations.remove(p);
 				}
 			} else {
-				this.poisonDurations.put(p, Integer.valueOf(this.duration));
+				poisonDurations.put(p, duration);
 			}
 		}
 	}
 	
 	// Runnable
 	public void run() {
-		this.runtimes += 1;
+		runtimes += 1;
 		applyPoison();
-		for(int i = 0; i < this.players.size(); i++) {
-			Player p = this.players.get(i);
+		for(int i = 0; i < players.size(); i++) {
+			Player p = players.get(i);
 			
 			if (this.playerBlocks.containsKey(p)) {
-				Location loc = this.playerBlocks.get(p).getLocation();
+				Location loc = playerBlocks.get(p).getLocation();
 				int px = p.getLocation().getBlockX();
 				int py = p.getLocation().getBlockY();
 				int pz = p.getLocation().getBlockZ();
@@ -79,18 +72,18 @@ public class PlayerTracker implements Runnable {
 				
 				int r = 2;
 				if ((px > lx + r) || (px < lx - r) || (py > ly + r) || (py < ly - r) || (pz > lz + r) || (pz < lz - r) || (!p.isSneaking())) {
-					if (this.hasBlock.containsKey(p)) {
-						if (this.hasBlock.get(p).booleanValue()) {
-							if (this.playerBlocks.containsKey(p)) {
-								this.playerBlocks.get(p).setTypeId(0);
-								this.hasBlock.put(p, Boolean.valueOf(false));
+					if (hasBlock.containsKey(p)) {
+						if (hasBlock.get(p).booleanValue()) {
+							if (playerBlocks.containsKey(p)) {
+								playerBlocks.get(p).setTypeId(0);
+								hasBlock.put(p, Boolean.valueOf(false));
 							} else {
-								this.playerBlocks.put(p, p.getWorld().getBlockAt(px, py - 1, pz));
-								this.hasBlock.put(p, Boolean.valueOf(false));
+								playerBlocks.put(p, p.getWorld().getBlockAt(px, py - 1, pz));
+								hasBlock.put(p, Boolean.valueOf(false));
 							}
 						}
 					} else {
-						this.hasBlock.put(p, Boolean.FALSE);
+						hasBlock.put(p, Boolean.FALSE);
 					}
 				}
 				
@@ -113,14 +106,10 @@ public class PlayerTracker implements Runnable {
 	
 	// Check if a Player has a certain permission
 	public boolean checkForPermission(String permission, Player p) {
-		if (this.permUsage) {
+		if (usePerms) {
 			return DarkBrotherhood.permission.has(p, permission);
 		}
 		return p.isOp();
-	}
-	
-	public void setPermissionUsage(boolean b) {
-		this.permUsage = b;
 	}
 	
 	public void setPlayerBlock(Block block, Player p) {

@@ -1,6 +1,7 @@
 package me.iMint.DarkBrotherhood;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Random;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Entity;
@@ -10,13 +11,14 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityTargetEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
 
 public class EntityListener implements Listener {
 	
 	DarkBrotherhood plugin;
-	private boolean usePerms;
-	private int multiplier = 2;
+	private final boolean usePerms;
+	private final int multiplier;
 	private final int rollEN;
 	private final int assassinEN;
 	private final int shurikenDMG;
@@ -24,30 +26,24 @@ public class EntityListener implements Listener {
 	private final String goodRollMsg;
 	private final String badRollMsg;
 	
-	ArrayList<Entity> shuriken = new ArrayList<Entity>();
+	HashMap<Entity, Boolean> shuriken = new HashMap<Entity, Boolean>();
 	ArrayList<Player> hasPoison = new ArrayList<Player>();
-	
-	public void setMultiplier(int m) {
-		this.multiplier = m;
-	}
-	
-	public void setPermissionUsage(boolean b) {
-		this.usePerms = b;
-	}
 	
 	public EntityListener (DarkBrotherhood plugin) {
 		this.plugin = plugin;
-		rollEN = plugin.getConfig().getInt("L.O.F.-EnergyUsage");
-		assassinEN = plugin.getConfig().getInt("AssassinateEnergyUsage");
-		shurikenDMG = plugin.getConfig().getInt("ShurikenDamage");
-		rollChance = plugin.getConfig().getInt("L.O.F.-Chance");
-		goodRollMsg = plugin.getConfig().getString("L.O.F.-success-message");
-		badRollMsg = plugin.getConfig().getString("L.O.F.-fail-message");
+		usePerms = DarkBrotherhood.UsePermissions;
+		multiplier = DarkBrotherhood.Multiplier;
+		rollEN = DarkBrotherhood.LeapOfFaithEnergyUsage;
+		assassinEN = DarkBrotherhood.AssassinationEnergyUsage;
+		shurikenDMG = DarkBrotherhood.ShurikenDamage;
+		rollChance = DarkBrotherhood.LeapOfFaithSuccessChance;
+		goodRollMsg = DarkBrotherhood.LeapOfFaithSuccessMessage;
+		badRollMsg = DarkBrotherhood.LeapOfFaithFailureMessage;
 	}
 	
 	@EventHandler
 	public void onProjectileHit(ProjectileHitEvent event) {
-		if (this.shuriken.contains(event.getEntity())) {
+		if (this.shuriken.containsKey(event.getEntity())) {
 			event.getEntity().remove();
 			this.shuriken.remove(event.getEntity());
 		}
@@ -81,8 +77,11 @@ public class EntityListener implements Listener {
 			EntityDamageByEntityEvent event = (EntityDamageByEntityEvent) e;
 			
 			// Shuriken Damage
-			if (this.shuriken.contains(event.getDamager())) {
+			if (this.shuriken.containsKey(event.getDamager())) {
 				e.setDamage(shurikenDMG);
+				if (shuriken.get(event.getDamager())) {
+					e.setDamage(shurikenDMG * 2);
+				}
 				this.shuriken.remove(event.getDamager());
 				wasShuriken = true;
 			}
@@ -103,7 +102,8 @@ public class EntityListener implements Listener {
 				this.hasPoison.remove(assassin);
 				this.plugin.pTracker.poisonDurations.remove(target);
 				this.plugin.pTracker.poisoned.add(target);
-				assassin.sendMessage("Target has been poisoned!");
+				if (target instanceof Player) ((Player) target).sendMessage(ChatColor.LIGHT_PURPLE + "You have been poisoned!");
+				assassin.sendMessage(ChatColor.LIGHT_PURPLE + "You have poisoned your target!");
 			}
 			if (!assassin.isSneaking()) return;
 			
@@ -123,6 +123,18 @@ public class EntityListener implements Listener {
 					DarkBrotherhood.mana.put(assassin, energy - assassinEN);
 					PlayerListener.showEnergy(assassin, energy - assassinEN);
 				}
+			}
+		}
+	}
+	
+	@EventHandler
+	public void onEntityTarget(EntityTargetEvent event) {
+		Entity target = event.getTarget();
+		// Can't see hidden players
+		if (target instanceof Player) {
+			Player player = (Player) target;
+			if (DarkBrotherhood.hidden.contains(player)) {
+				event.setCancelled(true);
 			}
 		}
 	}
