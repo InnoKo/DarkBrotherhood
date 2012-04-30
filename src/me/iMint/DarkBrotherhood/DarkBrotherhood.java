@@ -89,8 +89,10 @@ public class DarkBrotherhood extends JavaPlugin {
 	**/
 	
 	// Other fields
+	public static HashMap<Player, Bounty> bounties = new HashMap<Player, Bounty>();
 	public static HashMap<Player, Integer> mana = new HashMap<Player, Integer>();
-	public static HashMap<Block, Player> locked = new HashMap<Block, Player>();
+	public static HashMap<Player, Integer> taskIDs = new HashMap<Player, Integer>();
+	public static HashMap<Block, String> locked = new HashMap<Block, String>();
 	public static List<Player> hidden = new ArrayList<Player>();
 	
 	// Disabling
@@ -179,38 +181,39 @@ public class DarkBrotherhood extends JavaPlugin {
 	}
 	
 	private void loadConfig() {
-		updatePath("General Settings.Use Permissions", false);
-		updatePath("General Settings.Climbable Blocks", "[4,5,24,43,44,45,47,48,85,101]");
-		updatePath("General Settings.Multiplier", 2);
-		updatePath("Item Settings.Energy Item", 353);
-		updatePath("Item Settings.Lockpick Item", 287);
-		updatePath("Item Settings.Lock Item", 77);
-		updatePath("Item Settings.Poison Item", 40);
-		updatePath("Item Settings.Shuriken Item", 318);
-		updatePath("Stat Settings.Lockpick Success Chance", 25);
-		updatePath("Stat Settings.Lockpick Failure Damage", 5);
-		updatePath("Stat Settings.Poison Duration", 5);
-		updatePath("Stat Settings.Poison Damage", 1);
-		updatePath("Stat Settings.Shuriken Damage", 2);
-		updatePath("Stat Settings.Invisibility Maximum Light Level", 14);
-		updatePath("Stat Settings.Invisibility Distance", 1);
-		updatePath("Leap of Faith Settings.Success Chance", 50);
-		updatePath("Leap of Faith Settings.Success Message", "You successfully rolled to avoid fall damage!");
-		updatePath("Leap of Faith Settings.Failure Message", "You failed to roll, badly injuring yourself!");
-		updatePath("Energy Settings.Maximum Energy", 100);
-		updatePath("Energy Settings.Energy Restore Tick", 2);
-		updatePath("Energy Settings.Energy Restore Amount", 10);
-		updatePath("Energy Settings.Energy Item Restore Amount", 15);
-		updatePath("Energy Settings.Assassination Energy Usage", 40);
-		updatePath("Energy Settings.Leap of Faith Energy Usage", 40);
-		updatePath("Energy Settings.Climbing Energy Usage", 15);
-		updatePath("Energy Settings.Invisibility Energy Usage", 20);
-		saveConfig();
+		config.addDefault("General Settings.Use Permissions", false);
+		config.addDefault("General Settings.Climbable Blocks", "[4,5,24,43,44,45,47,48,85,101]");
+		config.addDefault("General Settings.Multiplier", 2);
+		config.addDefault("Item Settings.Energy Item", 353);
+		config.addDefault("Item Settings.Lockpick Item", 287);
+		config.addDefault("Item Settings.Lock Item", 77);
+		config.addDefault("Item Settings.Poison Item", 40);
+		config.addDefault("Item Settings.Shuriken Item", 318);
+		config.addDefault("Stat Settings.Lockpick Success Chance", 25);
+		config.addDefault("Stat Settings.Lockpick Failure Damage", 5);
+		config.addDefault("Stat Settings.Poison Duration", 5);
+		config.addDefault("Stat Settings.Poison Damage", 1);
+		config.addDefault("Stat Settings.Shuriken Damage", 2);
+		config.addDefault("Stat Settings.Invisibility Maximum Light Level", 14);
+		config.addDefault("Stat Settings.Invisibility Distance", 1);
+		config.addDefault("Leap of Faith Settings.Success Chance", 50);
+		config.addDefault("Leap of Faith Settings.Success Message", "You successfully rolled to avoid fall damage!");
+		config.addDefault("Leap of Faith Settings.Failure Message", "You failed to roll, badly injuring yourself!");
+		config.addDefault("Energy Settings.Maximum Energy", 100);
+		config.addDefault("Energy Settings.Energy Restore Tick", 2);
+		config.addDefault("Energy Settings.Energy Restore Amount", 10);
+		config.addDefault("Energy Settings.Energy Item Restore Amount", 15);
+		config.addDefault("Energy Settings.Assassination Energy Usage", 40);
+		config.addDefault("Energy Settings.Leap of Faith Energy Usage", 40);
+		config.addDefault("Energy Settings.Climbing Energy Usage", 15);
+		config.addDefault("Energy Settings.Invisibility Energy Usage", 20);
+		config.options().copyDefaults(true);
 		try {
-			getConfig().save(configFile);
+			config.save(configFile);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+		saveConfig();
 		//█████████████████████████████████████████████████████████████████████████████████████████████████████████████████
 		UsePermissions = getConfig().getBoolean("General Settings.Use Permissions");
 		ClimbableBlocks = getConfig().getIntegerList("General Settings.Climbable Blocks");
@@ -256,13 +259,6 @@ public class DarkBrotherhood extends JavaPlugin {
 		return (permission != null);
 	}
 	
-	// Set config values if they aren't there
-	private void updatePath(String path, Object defaultObject) {
-		if (!getConfig().contains(path)) {
-			getConfig().set(path, defaultObject);
-		}
-	}
-	
 	// Copy the default config.yml
 	private void copy(InputStream in, File file) {
 		try {
@@ -298,14 +294,14 @@ public class DarkBrotherhood extends JavaPlugin {
 		try {
 			FileOutputStream os = new FileOutputStream(chestData);
 			PrintStream printer = new PrintStream(os);
-			for(Entry<Block, Player> entry : locked.entrySet()) {
+			for(Entry<Block, String> entry : locked.entrySet()) {
 				Block block = entry.getKey();
-				Player player = entry.getValue();
+				String player = entry.getValue();
 				String w = block.getWorld().getName();
 				int x = block.getX();
 				int y = block.getY();
 				int z = block.getZ();
-				String paper = w + "," + x + "," + y + "," + z + ":" + player.getName();
+				String paper = w + "," + x + "," + y + "," + z + ":" + player;
 				printer.println(paper);
 			}
 		} catch (Exception e) {
@@ -353,7 +349,7 @@ public class DarkBrotherhood extends JavaPlugin {
 				int z = Integer.parseInt(coords[3]);
 				World world = getServer().getWorld(coords[0]);
 				Block block = world.getBlockAt(x, y, z);
-				Player player = getServer().getPlayer(temp[1]);
+				String player = temp[1];
 				DarkBrotherhood.locked.put(block, player);
 			}
 		} catch (Exception e) {
@@ -403,6 +399,47 @@ public class DarkBrotherhood extends JavaPlugin {
 					int energy = DarkBrotherhood.mana.get(player);
 					PlayerListener.showEnergy(player, energy);
 					return true;
+				}
+				
+				// Place Bounty
+				if (args[0].equalsIgnoreCase("bounty")) {
+					if (!(sender instanceof Player)) return true;
+					Player player = (Player) sender;
+					Player target = getServer().getPlayer(args[1]);
+					Double reward = Double.parseDouble(args[2]);
+					if (args.length < 2) {
+						player.sendMessage(ChatColor.RED + "You must specify a player to put your bounty on!");
+						return true;
+					}
+					if (args.length < 3) {
+						player.sendMessage(ChatColor.RED + "You must specify a bounty reward!");
+						return true;
+					}
+					if (target == null) {
+						player.sendMessage(ChatColor.RED + "That player doesn't exist or is not online!");
+						return true;
+					}
+					if (bounties.containsKey(target)) {
+						Bounty bounty = bounties.get(target);
+						if (bounty.getBounties().containsKey(player)) {
+							Double oldReward = bounty.getBounties().get(player);
+							Double newReward = oldReward + reward;
+							bounty.placeBounty(player, newReward);
+							if (newReward >= oldReward) player.sendMessage(ChatColor.GOLD + "You have increased your bounty on this player to " + newReward + "!");
+							else player.sendMessage(ChatColor.GOLD + "You have decreased your bounty on this player to " + newReward + ".");
+							return true;
+						} else {
+							bounty.placeBounty(player, reward);
+							player.sendMessage(ChatColor.GOLD + "You have placed a bounty of " + reward + " on this player!");
+							return true;
+						}
+					} else {
+						Bounty bounty = new Bounty(target);
+						bounties.put(target, bounty);
+						bounty.placeBounty(player, reward);
+						player.sendMessage(ChatColor.GOLD + "You have placed a bounty of " + reward + " on this player!");
+						return true;
+					}
 				}
 			}
 		}

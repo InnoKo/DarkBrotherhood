@@ -104,14 +104,6 @@ public class PlayerTracker implements Runnable {
 		}
 	}
 	
-	// Check if a Player has a certain permission
-	public boolean checkForPermission(String permission, Player p) {
-		if (usePerms) {
-			return DarkBrotherhood.permission.has(p, permission);
-		}
-		return p.isOp();
-	}
-	
 	public void setPlayerBlock(Block block, Player p) {
 		//if(plugin.useSpout) SpoutManager.getMaterialManager().overrideBlock(block, plugin.grappleBlock);
 		if (this.hasBlock.containsKey(p)) {

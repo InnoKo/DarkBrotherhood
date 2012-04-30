@@ -2,6 +2,7 @@ package me.iMint.DarkBrotherhood;
 
 import java.util.List;
 import net.minecraft.server.Material;
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -12,6 +13,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -22,7 +24,6 @@ public class PlayerListener implements Listener {
 	
 	private final DarkBrotherhood plugin;
 	private static DarkBrotherhood db;
-	private final boolean usePerms;
 	private final List<Integer> climbables;
 	private final int energyItem;
 	private final int poisonItem;
@@ -39,7 +40,6 @@ public class PlayerListener implements Listener {
 	PlayerListener (DarkBrotherhood db) {
 		this.plugin = db;
 		PlayerListener.db = db;
-		usePerms = DarkBrotherhood.UsePermissions;
 		climbables = DarkBrotherhood.ClimbableBlocks;
 		energyItem = DarkBrotherhood.EnergyItem;
 		poisonItem = DarkBrotherhood.PoisonItem;
@@ -60,7 +60,7 @@ public class PlayerListener implements Listener {
 		Action action = event.getAction();
 		
 		// Shuriken throwing
-		if (action.equals(Action.LEFT_CLICK_AIR) && player.getItemInHand().getTypeId() == shurikenItem && checkForPermission("DarkBrotherhood.use.shuriken", player)) {
+		if (action.equals(Action.LEFT_CLICK_AIR) && player.getItemInHand().getTypeId() == shurikenItem && Util.hasPermission("DarkBrotherhood.use.shuriken", player)) {
 			ItemStack item = event.getItem();
 			/**if (plugin.useSpout) {
 				SpoutItemStack sItem = (SpoutItemStack) event.getItem();
@@ -84,7 +84,7 @@ public class PlayerListener implements Listener {
 		if ((action == Action.RIGHT_CLICK_BLOCK) && (player.getItemInHand().getTypeId() == 0)) {
 			Block block = event.getClickedBlock();
 			World w = block.getWorld();
-			if (checkForPermission("darkbrotherhood.climb", player)) {
+			if (Util.hasPermission("darkbrotherhood.climb", player)) {
 				int energy = DarkBrotherhood.mana.get(player);
 				if (energy < climbEN) {
 					player.sendMessage(ChatColor.RED + "You don't have enough energy to climb!");
@@ -125,7 +125,7 @@ public class PlayerListener implements Listener {
 		}
 		
 		// Poisoning weapons
-		if ((action.equals(Action.RIGHT_CLICK_AIR)) && (player.getItemInHand().getTypeId() == poisonItem) && (checkForPermission("DarkBrotherhood.use.poison", player))) {
+		if ((action.equals(Action.RIGHT_CLICK_AIR)) && (player.getItemInHand().getTypeId() == poisonItem) && (Util.hasPermission("DarkBrotherhood.use.poison", player))) {
 			if (plugin.entityListener.hasPoison.contains(player)) {
 				player.sendMessage(ChatColor.LIGHT_PURPLE + "Your weapon is already poisoned!");
 			} else {
@@ -162,36 +162,67 @@ public class PlayerListener implements Listener {
 	// Invisible Sneaking
 	@EventHandler
 	public void onPlayerToggleSneak(PlayerToggleSneakEvent event) {
-		Player sneaker = event.getPlayer();
+		final Player sneaker = event.getPlayer();
 		Boolean sneaking = event.isSneaking();
-		Player[] players = plugin.getServer().getOnlinePlayers();
+		final Player[] players = plugin.getServer().getOnlinePlayers();
 		if (sneaker.isFlying()) return;
-		if (sneaking && checkForPermission("darkbrotherhood.invisibility", sneaker)) {
-			int energy = DarkBrotherhood.mana.get(sneaker);
-			if (energy >= sneakEN) {
-				DarkBrotherhood.mana.put(sneaker, energy - sneakEN);
-				if (sneaker.getLocation().getBlock().getLightLevel() <= maxLight) {
-					DarkBrotherhood.hidden.add(sneaker);
-					sneaker.sendMessage(ChatColor.GOLD + "You are now hidden in the shadows!");
-					for(int i = 0; i < players.length; i++) {
-						Player viewer = players[i];
-						if (!checkForPermission("darkbrotherhood.seeinvisibleplayers", viewer)) {
-							viewer.hidePlayer(sneaker);
+		if (sneaking && Util.hasPermission("darkbrotherhood.invisibility", sneaker)) {
+			final int energy = DarkBrotherhood.mana.get(sneaker);
+			int id = db.getServer().getScheduler().scheduleAsyncDelayedTask(db, new Runnable(){
+				
+				public void run() {
+					if (energy >= sneakEN) {
+						DarkBrotherhood.mana.put(sneaker, energy - sneakEN);
+						if (sneaker.getLocation().getBlock().getLightLevel() <= maxLight) {
+							DarkBrotherhood.hidden.add(sneaker);
+							DarkBrotherhood.taskIDs.remove(sneaker);
+							sneaker.sendMessage(ChatColor.GOLD + "You are now hidden in the shadows!");
+							for(int i = 0; i < players.length; i++) {
+								Player viewer = players[i];
+								if (!Util.hasPermission("darkbrotherhood.seeinvisibleplayers", viewer)) {
+									viewer.hidePlayer(sneaker);
+								}
+							}
+						} else {
+							sneaker.sendMessage(ChatColor.RED + "You can only hide in dark shadows!");
 						}
+					} else {
+						sneaker.sendMessage(ChatColor.RED + "Not enough energy to go invisible!");
 					}
-				} else {
-					sneaker.sendMessage(ChatColor.RED + "You can only hide in dark shadows!");
 				}
-			} else {
-				sneaker.sendMessage(ChatColor.RED + "Not enough energy to go invisible!");
-			}
-			// Player stopped sneaking	
+			}, 60L);
+			DarkBrotherhood.taskIDs.put(sneaker, id);
+			// Player stopped sneaking
+		} else if (!sneaking && DarkBrotherhood.taskIDs.containsKey(sneaker)) {
+			int id = DarkBrotherhood.taskIDs.get(sneaker);
+			Bukkit.getScheduler().cancelTask(id);
+			DarkBrotherhood.taskIDs.remove(sneaker);
 		} else if (!sneaking && DarkBrotherhood.hidden.contains(sneaker)) {
 			DarkBrotherhood.hidden.remove(sneaker);
 			sneaker.sendMessage(ChatColor.GRAY + "You are no longer hidden in the shadows!");
 			for(int i = 0; i < players.length; i++) {
 				Player viewer = players[i];
 				viewer.showPlayer(sneaker);
+			}
+		}
+	}
+	
+	@EventHandler
+	public void onPlayerDamage(EntityDamageEvent event) {
+		if (!(event.getEntity() instanceof Player)) return;
+		Player player = (Player) event.getEntity();
+		if (DarkBrotherhood.taskIDs.containsKey(player)) {
+			int id = DarkBrotherhood.taskIDs.get(player);
+			Bukkit.getScheduler().cancelTask(id);
+			DarkBrotherhood.taskIDs.remove(player);
+			player.sendMessage(ChatColor.GRAY + "Failed to hide in the shadows!");
+		} else if (DarkBrotherhood.hidden.contains(player)) {
+			DarkBrotherhood.hidden.remove(player);
+			player.sendMessage(ChatColor.GRAY + "You are no longer hidden in the shadows!");
+			Player[] players = db.getServer().getOnlinePlayers();
+			for(int i = 0; i < players.length; i++) {
+				Player viewer = players[i];
+				viewer.showPlayer(player);
 			}
 		}
 	}
@@ -206,7 +237,7 @@ public class PlayerListener implements Listener {
 	public static void startEnergy(final Player player) {
 		if (!DarkBrotherhood.mana.containsKey(player)) DarkBrotherhood.mana.put(player, maxEN);
 		// Restores Energy every (tickEN) seconds, double restoration if the player has full health
-		db.getServer().getScheduler().scheduleAsyncRepeatingTask(db, new Runnable(){
+		db.getServer().getScheduler().scheduleSyncRepeatingTask(db, new Runnable(){
 			
 			public void run() {
 				int energy = DarkBrotherhood.mana.get(player);
@@ -227,7 +258,7 @@ public class PlayerListener implements Listener {
 		Action action = event.getAction();
 		Block block = event.getClickedBlock();
 		Player player = event.getPlayer();
-		if ((action.equals(Action.RIGHT_CLICK_BLOCK) || action.equals(Action.LEFT_CLICK_BLOCK)) && block instanceof Door && checkForPermission("darkbrotherhood.silent", player)) {
+		if ((action.equals(Action.RIGHT_CLICK_BLOCK) || action.equals(Action.LEFT_CLICK_BLOCK)) && block instanceof Door && Util.hasPermission("darkbrotherhood.silent", player)) {
 			Door door = (Door) block;
 			event.setCancelled(true);
 			Boolean isOpen = door.isOpen();
@@ -237,14 +268,6 @@ public class PlayerListener implements Listener {
 	}
 	*/
 	
-	// Check if a Player has a certain permission
-	public boolean checkForPermission(String permission, Player p) {
-		if (this.usePerms) {
-			return DarkBrotherhood.permission.has(p, permission);
-		}
-		return p.isOp();
-	}
-	
 	@EventHandler
 	public void onPlayerJoin(PlayerJoinEvent event) {
 		this.plugin.pTracker.players.add(event.getPlayer());
@@ -252,6 +275,7 @@ public class PlayerListener implements Listener {
 	
 	public void onPlayerQuit(PlayerQuitEvent event) {
 		this.plugin.pTracker.players.remove(event.getPlayer());
+		db.saveData();
 	}
 	
 	private boolean canClimb(Block block) {

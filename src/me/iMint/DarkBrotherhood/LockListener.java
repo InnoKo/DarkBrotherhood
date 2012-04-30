@@ -1,6 +1,5 @@
 package me.iMint.DarkBrotherhood;
 
-import java.util.HashMap;
 import java.util.Random;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -9,13 +8,14 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 
 public class LockListener implements Listener {
 	
 	DarkBrotherhood plugin;
-	HashMap<Block, Player> locked;
+	//	HashMap<Block, Player> locked;
 	int lockpickItem;
 	int lockItem;
 	int chance;
@@ -24,7 +24,7 @@ public class LockListener implements Listener {
 	
 	public LockListener (DarkBrotherhood db) {
 		plugin = db;
-		locked = DarkBrotherhood.locked;
+		//		locked = DarkBrotherhood.locked;
 		lockpickItem = DarkBrotherhood.LockpickItem;
 		lockItem = DarkBrotherhood.LockItem;
 		chance = DarkBrotherhood.LockpickSuccessChance;
@@ -41,36 +41,10 @@ public class LockListener implements Listener {
 		ItemStack item = event.getItem();
 		if (!action.equals(Action.RIGHT_CLICK_BLOCK)) return;
 		if (!block.getType().equals(Material.CHEST)) return;
-		if (locked.containsKey(block)) {
-			Player owner = locked.get(block);
-			if (player.equals(owner)) return;
-			player.sendMessage(ChatColor.RED + "This chest is locked by " + locked.get(block).getDisplayName() + ChatColor.RED + "!");
-			event.setCancelled(true);
-			return;
-			// Locking Chests
-		}
-		if (item.getTypeId() == lockItem) {
-			if (DarkBrotherhood.permission.has(player, "darkbrotherhood.use.lock")) {
-				locked.put(block, player);
-				int amount = item.getAmount();
-				if (amount > 1) {
-					item.setAmount(amount - 1);
-				} else {
-					player.getInventory().clear(player.getInventory().getHeldItemSlot());
-				}
-				player.sendMessage(ChatColor.GOLD + "This chest is now locked!");
-				event.setCancelled(true);
-				return;
-			} else {
-				player.sendMessage(ChatColor.RED + "You don't have permission to lock chests!");
-				event.setCancelled(true);
-				return;
-			}
-		}
 		// Picking Locks
-		if (item.getTypeId() == lockpickItem) {
-			if (checkForPermission("darkbrotherhood.use.lockpick", player)) {
-				if (!locked.containsKey(block)) return;
+		if (item != null && item.getTypeId() == lockpickItem) {
+			if (Util.hasPermission("darkbrotherhood.use.lockpick", player)) {
+				if (!DarkBrotherhood.locked.containsKey(block)) return;
 				Random rand = new Random();
 				if (rand.nextInt(99) + 1 <= chance) { //Chance of successfully picking the lock
 					player.sendMessage("You cunningly disengage the lock!");
@@ -78,6 +52,7 @@ public class LockListener implements Listener {
 				} else {
 					player.damage(failDamage);
 					player.sendMessage("The lock snaps back.");
+					event.setCancelled(true);
 				}
 				return;
 			} else {
@@ -86,12 +61,51 @@ public class LockListener implements Listener {
 				return;
 			}
 		}
+		// Opening Chests
+		if (DarkBrotherhood.locked.containsKey(block)) {
+			String owner = DarkBrotherhood.locked.get(block);
+			if (player.getName().equalsIgnoreCase(owner)) return;
+			player.sendMessage(ChatColor.RED + "This chest is locked by " + owner + ChatColor.RED + "!");
+			event.setCancelled(true);
+			return;
+		}
+		// Locking Chests
+		if (item != null && item.getTypeId() == lockItem) {
+			if (DarkBrotherhood.permission.has(player, "darkbrotherhood.use.lock")) {
+				DarkBrotherhood.locked.put(block, player.getName());
+				int amount = item.getAmount();
+				if (amount > 1) {
+					item.setAmount(amount - 1);
+				} else {
+					player.getInventory().clear(player.getInventory().getHeldItemSlot());
+				}
+				player.sendMessage(ChatColor.GOLD + "This chest is now locked!");
+				plugin.saveData();
+				event.setCancelled(true);
+				return;
+			} else {
+				player.sendMessage(ChatColor.RED + "You don't have permission to lock chests!");
+				event.setCancelled(true);
+				return;
+			}
+		}
 	}
 	
-	public boolean checkForPermission(String permission, Player p) {
-		if (this.usePerms) {
-			return DarkBrotherhood.permission.has(p, permission);
+	@EventHandler
+	public void onChestBreak(BlockBreakEvent event) {
+		Block block = event.getBlock();
+		Player player = event.getPlayer();
+		String owner = DarkBrotherhood.locked.get(block);
+		if (!block.getType().equals(Material.CHEST)) return;
+		if (!DarkBrotherhood.locked.containsKey(block)) return;
+		if (player.getName().equalsIgnoreCase(owner)) {
+			DarkBrotherhood.locked.remove(block);
+			block.getWorld().dropItemNaturally(block.getLocation(), new ItemStack(Material.STONE_BUTTON, 1));
+			return;
+		} else {
+			event.setCancelled(true);
+			player.sendMessage(ChatColor.RED + "This chest is locked by " + owner + ChatColor.RED + "!");
+			return;
 		}
-		return p.isOp();
 	}
 }

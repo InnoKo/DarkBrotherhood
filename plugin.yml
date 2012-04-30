@@ -1,6 +1,6 @@
 name: DarkBrotherhood
 main: me.iMint.DarkBrotherhood.DarkBrotherhood
-version: 1.6
+version: 1.6.5
 author: iMint
 commands:
     darkbrotherhood:

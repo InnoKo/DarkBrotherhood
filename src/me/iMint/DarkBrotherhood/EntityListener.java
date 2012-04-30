@@ -17,7 +17,6 @@ import org.bukkit.event.entity.ProjectileHitEvent;
 public class EntityListener implements Listener {
 	
 	DarkBrotherhood plugin;
-	private final boolean usePerms;
 	private final int multiplier;
 	private final int rollEN;
 	private final int assassinEN;
@@ -31,7 +30,6 @@ public class EntityListener implements Listener {
 	
 	public EntityListener (DarkBrotherhood plugin) {
 		this.plugin = plugin;
-		usePerms = DarkBrotherhood.UsePermissions;
 		multiplier = DarkBrotherhood.Multiplier;
 		rollEN = DarkBrotherhood.LeapOfFaithEnergyUsage;
 		assassinEN = DarkBrotherhood.AssassinationEnergyUsage;
@@ -55,7 +53,7 @@ public class EntityListener implements Listener {
 		if ((e.getCause() == EntityDamageEvent.DamageCause.FALL) && ((e.getEntity() instanceof Player))) {
 			Player player = (Player) e.getEntity();
 			int energy = DarkBrotherhood.mana.get(player);
-			if ((checkForPermission("DarkBrotherhood.roll", player)) && (player.isSneaking())) {
+			if ((Util.hasPermission("DarkBrotherhood.roll", player)) && (player.isSneaking())) {
 				Random success = new Random();
 				if (success.nextInt(99) + 1 <= rollChance) {
 					if (energy >= rollEN) {
@@ -93,7 +91,7 @@ public class EntityListener implements Listener {
 			int energy = DarkBrotherhood.mana.get(assassin);
 			
 			if (!(event.getEntity() instanceof LivingEntity)) return;
-			if (!checkForPermission("DarkBrotherhood.assassinate", assassin)) return;
+			if (!Util.hasPermission("DarkBrotherhood.assassinate", assassin)) return;
 			LivingEntity target = (LivingEntity) event.getEntity();
 			int base = event.getDamage();
 			
@@ -113,7 +111,6 @@ public class EntityListener implements Listener {
 				int bonus = (int) (q * this.multiplier * base);
 				if (bonus == 0) return;
 				if (wasShuriken) bonus *= 2;
-				System.out.println(assassinEN);
 				if (energy < assassinEN) {
 					assassin.sendMessage(ChatColor.RED + "You don't have enough energy to assassinate!");
 					return;
@@ -137,13 +134,5 @@ public class EntityListener implements Listener {
 				event.setCancelled(true);
 			}
 		}
-	}
-	
-	// Check if a Player has a certain permission
-	public boolean checkForPermission(String permission, Player p) {
-		if (this.usePerms) {
-			return DarkBrotherhood.permission.has(p, permission);
-		}
-		return p.isOp();
 	}
 }
